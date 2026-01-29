@@ -1,0 +1,9 @@
+{
+  "name": "RDP Desktop",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  "features": {
+    "ghcr.io/devcontainers/features/desktop-lite:1": {}
+  },
+  "forwardPorts": [3389],
+  "postCreateCommand": "sudo apt update && sudo apt install -y xfce4 xfce4-goodies xrdp"
+}
