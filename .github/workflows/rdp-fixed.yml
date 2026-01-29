@@ -1,0 +1,109 @@
+name: Windows RDP Anti-Idle
+
+on: workflow_dispatch
+
+jobs:
+  rdp:
+    runs-on: windows-latest
+    timeout-minutes: 60  # Test dulu 1 jam
+
+    steps:
+    # === 1. SETUP RDP (SIMPLE) ===
+    - name: Enable RDP
+      run: |
+        # Enable RDP
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force
+        netsh advfirewall firewall add rule name="RDP" dir=in action=allow protocol=TCP localport=3389
+        
+        # Disable sleep
+        powercfg -change -standby-timeout-ac 0
+        powercfg -change -monitor-timeout-ac 0
+        
+        echo "✅ RDP Enabled"
+      
+    # === 2. BUAT USER ===
+    - name: Create User
+      run: |
+        # Buat user sederhana
+        net user rdpuser "Passw0rd123!" /add /y
+        net localgroup administrators rdpuser /add
+        net localgroup "Remote Desktop Users" rdpuser /add
+        
+        echo "RDP_USER=rdpuser" >> $env:GITHUB_ENV
+        echo "RDP_PASS=Passw0rd123!" >> $env:GITHUB_ENV
+        echo "✅ User Created"
+      
+    # === 3. INSTALL TAILSCALE ===
+    - name: Install Tailscale
+      run: |
+        # Download Tailscale
+        curl.exe -L "https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.msi" -o "$env:TEMP\tailscale.msi"
+        
+        # Install
+        msiexec /i "$env:TEMP\tailscale.msi" /quiet /norestart
+        
+        # Tunggu instalasi
+        timeout /t 15 /nobreak
+        echo "✅ Tailscale Installed"
+      
+    # === 4. CONNECT TAILSCALE ===
+    - name: Connect Tailscale
+      env:
+        TAILSCALE_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
+      run: |
+        # Tunggu service Tailscale
+        timeout /t 10 /nobreak
+        
+        # Connect ke Tailscale
+        & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey="$env:TAILSCALE_KEY" --hostname="rdp-$env:GITHUB_RUN_ID"
+        
+        # Dapatkan IP
+        $ip = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
+        echo "TAILSCALE_IP=$ip" >> $env:GITHUB_ENV
+        echo "✅ Tailscale Connected: $ip"
+      
+    # === 5. SETUP KEEP-ALIVE ===
+    - name: Setup Keep Alive
+      run: |
+        # Buat PowerShell script keep-alive (SIMPLE VERSION)
+        @'
+        while ($true) {
+            echo "[$(Get-Date)] Keep-alive active"
+            # Simpan log
+            "[$(Get-Date)] Active" | Out-File -FilePath "$env:TEMP\keepalive.log" -Append
+            # Tunggu 1 menit
+            Start-Sleep -Seconds 60
+        }
+'@ | Out-File -FilePath "$env:TEMP\keepalive.ps1" -Encoding UTF8
+        
+        # Buat batch file untuk auto-start
+        @echo off
+        start /B powershell -WindowStyle Hidden -ExecutionPolicy Bypass -File "%TEMP%\keepalive.ps1"
+        echo Keep-alive script created at %TEMP%\keepalive.ps1
+      
+    # === 6. DISPLAY INFO ===
+    - name: Show Connection Info
+      run: |
+        echo "========================================"
+        echo "🟢 WINDOWS RDP READY!"
+        echo "========================================"
+        echo "IP TAILSCALE: $env:TAILSCALE_IP"
+        echo "USERNAME: $env:RDP_USER"
+        echo "PASSWORD: $env:RDP_PASS"
+        echo "========================================"
+        echo "🚀 SETELAH LOGIN KE RDP:"
+        echo "1. Buka PowerShell"
+        echo "2. Jalankan:"
+        echo "   powershell -File %TEMP%\keepalive.ps1"
+        echo "========================================"
+        echo "⏳ ESTIMASI: 1 jam (test mode)"
+        echo "========================================"
+        
+        # Jaga workflow tetap jalan
+        $start = Get-Date
+        while (((Get-Date) - $start).TotalMinutes -lt 55) {
+            $min = [math]::Round(55 - ((Get-Date) - $start).TotalMinutes, 0)
+            echo "[$(Get-Date)] Running... $min minutes left"
+            Start-Sleep -Seconds 30
+        }
+        echo "⏰ Test selesai! Buat workflow baru untuk durasi lebih lama."
