@@ -35,9 +35,9 @@ jobs:
 
       - name: Establish Tailscale Connection
         env:
-          TAILSCALE_AUTH_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
+          TAILESCALE_AUTH_KEYS: ${{ secrets.TAILESCALE_AUTH_KEYS }}
         run: |
-          & "C:\Program Files\Tailscale\tailscale.exe" up --authkey=$env:TAILSCALE_AUTH_KEY --hostname=gh-$env:GITHUB_RUN_ID
+          & "C:\Program Files\Tailscale\tailscale.exe" up --authkey=$env:TAILESCALE_AUTH_KEYS --hostname=gh-$env:GITHUB_RUN_ID
           $ip = & "C:\Program Files\Tailscale\tailscale.exe" ip -4
           echo "TAILSCALE_IP=$ip" >> $env:GITHUB_ENV
 
